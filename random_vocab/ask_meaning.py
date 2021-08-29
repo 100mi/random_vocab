@@ -1,3 +1,4 @@
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -11,9 +12,30 @@ SOURCE_FILE = DATA_FOLDER / "source" / "meaning.csv"
 RESULT_FOLDER = DATA_FOLDER / "result"
 
 
-def get_sample_dataframe(required_observation, raw_file=SOURCE_FILE):
+def crosscheck_required_vs_actual_observations(
+    num_of_total_rows: int, required_rows: int
+) -> int:
+    return num_of_total_rows if num_of_total_rows <= required_rows else required_rows
+
+
+def get_sample_dataframe(starting_alphabet, required_observation, raw_file=SOURCE_FILE):
     dataframe = read_csv(raw_file)
-    sample_dataframe = dataframe.sample(n=required_observation)
+
+    if starting_alphabet:
+        dataframe = dataframe[
+            dataframe["word"].str.startswith(starting_alphabet, na=False)
+        ]
+
+    if dataframe.shape[0] == 0:
+        print(f"No word starting with: {starting_alphabet}")
+        sys.exit(1)
+
+    sample_dataframe = dataframe.sample(
+        n=crosscheck_required_vs_actual_observations(
+            num_of_total_rows=dataframe.shape[0], required_rows=required_observation
+        )
+    )
+
     return sample_dataframe
 
 
@@ -23,8 +45,27 @@ def get_current_time():
     return current_time_text
 
 
-def main(destination_folder=RESULT_FOLDER):
-    question_bank = get_sample_dataframe(required_observation=3, raw_file=SOURCE_FILE)
+@click.command()
+@click.option(
+    "--starting_alphabet",
+    "-s",
+    type=str,
+    default="",
+    help="Only provide words starting with particular alphabet; format: lowercase",
+)
+@click.option(
+    "--number_of_observation",
+    "-n",
+    default=20,
+    type=int,
+    help="Provide number of questions will appear in quiz",
+)
+def main(starting_alphabet, number_of_observation, destination_folder=RESULT_FOLDER):
+    question_bank = get_sample_dataframe(
+        starting_alphabet=starting_alphabet,
+        required_observation=number_of_observation,
+        raw_file=SOURCE_FILE,
+    )
 
     response_list = []
     # loop over each obsevation and ask question
@@ -33,7 +74,7 @@ def main(destination_folder=RESULT_FOLDER):
 
         # save the response to dataframe for same keyword
         response_list.append(
-            {"word": row["word"], "response": response, "answer": row["meaning"], "correct": ""}
+            {"word": row["word"], "response": response, "answer": row["meaning"]}
         )
 
     # save the dataframe with proper name
